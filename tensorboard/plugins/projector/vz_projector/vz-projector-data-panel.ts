@@ -238,53 +238,69 @@ class DataPanel extends LegacyElementMixin(PolymerElement) {
     // Color by options.
     const standardColorOption: ColorOption[] = [{name: 'No color map'}];
     const metadataColorOption: ColorOption[] = columnStats
-      .filter((stats) => {
-        return !stats.tooManyUniqueValues || stats.isNumeric;
-      })
-      .map((stats) => {
-        let map;
-        let items: {
-          label: string;
-          count: number;
-        }[];
-        let thresholds: ColorLegendThreshold[];
-        let isCategorical =
-          this.forceCategoricalColoring || !stats.tooManyUniqueValues;
-        let desc;
-        if (isCategorical) {
-          const scale = d3.scaleOrdinal(d3.schemeCategory10);
-          let range = scale.range();
-          // Re-order the range.
-          let newRange = range.map((color, i) => {
-            let index = (i * 3) % range.length;
-            return range[index];
+        .filter((stats) => {
+          return !stats.tooManyUniqueValues || stats.isNumeric;
+        })
+        .map((stats) => {
+          let map;
+          let items: {
+            label: string;
+            count: number;
+          }[];
+          let thresholds: ColorLegendThreshold[];
+          let isCategorical =
+              this.forceCategoricalColoring || !stats.tooManyUniqueValues;
+          let desc;
+          let options = [];
+          if (isCategorical) {
+            const scale = d3.scaleOrdinal(d3.schemeCategory10);
+            let range = scale.range();
+            // Re-order the range.
+            let newRange = range.map((color, i) => {
+              let index = (i * 3) % range.length;
+              return range[index];
+            });
+            items = stats.uniqueEntries;
+            scale.range(newRange).domain(items.map((x) => x.label));
+            map = scale;
+            const len = stats.uniqueEntries.length;
+            desc =
+                `${len} ${len > range.length ? ' non-unique' : ''} ` + `colors`;
+          } else {
+            thresholds = [
+              {color: '#ffffdd', value: stats.min},
+              {color: '#1f2d86', value: stats.max},
+            ];
+            const highlightThreshHolds = [
+              {color: '#eeeeee', value: stats.min},
+              {color: '#d41717', value: stats.max},
+            ];
+            map = d3
+                .scaleLinear<string, string>()
+                .domain(thresholds.map((t) => t.value))
+                .range(thresholds.map((t) => t.color));
+            desc = 'gradient';
+            // Add a highlight colorOption
+            options.push({
+              name: stats.name,
+              desc: 'highlight',
+              map: d3.scaleLinear.domain(thresholds.map((t) => t.value))
+                  .range(thresholds.map((t) => t.color)),
+              items: items,
+              thresholds: highlightThreshHolds,
+              tooManyUniqueValues: stats.tooManyUniqueValues,
+            })
+          }
+          options.unshift({
+            name: stats.name,
+            desc: desc,
+            map: map,
+            items: items,
+            thresholds: thresholds,
+            tooManyUniqueValues: stats.tooManyUniqueValues,
           });
-          items = stats.uniqueEntries;
-          scale.range(newRange).domain(items.map((x) => x.label));
-          map = scale;
-          const len = stats.uniqueEntries.length;
-          desc =
-            `${len} ${len > range.length ? ' non-unique' : ''} ` + `colors`;
-        } else {
-          thresholds = [
-            {color: '#ffffdd', value: stats.min},
-            {color: '#1f2d86', value: stats.max},
-          ];
-          map = d3
-            .scaleLinear<string, string>()
-            .domain(thresholds.map((t) => t.value))
-            .range(thresholds.map((t) => t.color));
-          desc = 'gradient';
-        }
-        return {
-          name: stats.name,
-          desc: desc,
-          map: map,
-          items: items,
-          thresholds: thresholds,
-          tooManyUniqueValues: stats.tooManyUniqueValues,
-        };
-      });
+          return options;
+        }).flatMap(a => a);
     if (metadataColorOption.length > 0) {
       // Add a separator line between built-in color maps
       // and those based on metadata columns.
